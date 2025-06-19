@@ -1,41 +1,47 @@
+
+
 js
-const { default: makeWASocket, useSingleFileAuthState } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
-const { state, saveState } = useSingleFileAuthState('./session.json');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
+const { Boom } = require("@hapi/boom");
+const fs = require("fs");
+const pino = require("pino");
 
 async function startBot() {
+  const { state, saveCreds } = await useMultiFileAuthState("session");
   const sock = makeWASocket({
-    auth: state,
+    logger: pino({ level: "silent" }),
     printQRInTerminal: true,
+    auth: state,
   });
 
-  sock.ev.on('creds.update', saveState);
+  sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on('messages.upsert', async (m) => {
-    const msg = m.messages[0];
-    if (!msg.message || msg.key.fromMe) return;
+  sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect } = update;
+    if (connection === "close") {
+      const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      if (reason === DisconnectReason.loggedOut) {
+        console.log("Logged out. Delete session and scan again.");
+        fs.rmSync("session", { recursive: true, force: true });
+      } else {
+        startBot();
+      }
+    } else if (connection === "open") {
+      console.log("✅ Bot connected");
+    }
+  });
 
-    const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+  sock.ev.on("messages.upsert", async (msg) => {
+    const m = msg.messages[0];if (!m.message || m.key.fromMe) return;
 
-    if (!text) return;
+    const text = m.message.conversation || m.message.extendedTextMessage?.text || "";
 
-    // Ping Command
-    if (text === '/ping') {
-      await sock.sendMessage(msg.key.remoteJid, { text: 'pong 🏓' });
+    if (text === "/ping") {
+      await sock.sendMessage(m.key.remoteJid, { text: "🏓 Pong!" }, { quoted: m });
     }
 
-    // Emoji Combiner Example (basic)
-    if (text.startsWith('/emoji ')) {
-      const emojis = text.replace('/emoji ', '').split('+');
-      await sock.sendMessage(msg.key.remoteJid, { text: `Combined: ${emojis.join('')}` });
-    }
-
-    // Sniff Placeholder
-    if (text === '/sniff') {
-      await sock.sendMessage(msg.key.remoteJid, { text: 'Sniffing... 🔍 (feature coming soon)' });
-    }// Quote (Motivation)
-    if (text === '/quote') {
-      await sock.sendMessage(msg.key.remoteJid, { text: '“One often meets his destiny on the road he takes to avoid it.” – Master Oogway 🐢' });
+    if (text === "/menu") {
+      await sock.sendMessage(m.key.remoteJid, { text: "🤖 Anonymous-MD Bot Online\nUse /ping or /menu" }, { quoted: m });
     }
   });
 }
