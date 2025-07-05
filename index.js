@@ -1,3 +1,4 @@
+
 js
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
 const { Boom } = require("@hapi/boom");
@@ -30,9 +31,14 @@ async function startBot() {
   });
 
   sock.ev.on("messages.upsert", async (msg) => {
-    const m = msg.messages[0];if (!m.message || m.key.fromMe) return;
+    const m = msg.messages[0];
+    if (!m.message || m.key.fromMe) return;
 
-    const text = m.message.conversation || m.message.extendedTextMessage?.text || "";
+    const text = (
+      m.message.conversation ||m.message.extendedTextMessage?.text ||
+      m.message.imageMessage?.caption ||
+      ""
+    ).toLowerCase();
 
     if (text === "/ping") {
       await sock.sendMessage(m.key.remoteJid, { text: "🏓 Pong!" }, { quoted: m });
