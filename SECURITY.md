@@ -12,4 +12,4 @@ If you find a security issue, please report it responsibly.
 - Do not share it publicly.
 - Contact the maintainer directly.
 - Provide steps to reproduce the issue.
-``` 
+ 
