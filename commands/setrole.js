@@ -1,13 +1,15 @@
 js
 const { loadRoles, saveRoles } = require('./roles');
 
+// Your WhatsApp JID
+const BOT_CREATOR = '27698210064@s.whatsapp.net';
+
 module.exports = {
   name: 'setrole',
   description: 'Manage owner and co-owner roles',
   async execute(sock, msg, args, sender, groupId, reply) {
     const roles = loadRoles();
 
-    // Ensure group entry exists
     if (!roles.groups[groupId]) {
       roles.groups[groupId] = { owner: sender, coowners: [] };
       saveRoles(roles);
@@ -17,7 +19,9 @@ module.exports = {
     const subCommand = args[0]?.toLowerCase();
     const mention = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
-    if (!mention) return reply('❌ Mention a user to set or remove role.');
+    if (!mention && subCommand !== 'removeowner') {
+      return reply('❌ Mention a user to set or remove role.');
+    }
 
     if (subCommand === 'setowner') {
       if (sender !== group.owner) return reply('❌ Only current owner can set new owner.');
@@ -29,10 +33,10 @@ module.exports = {
     if (subCommand === 'setcoowner') {
       if (sender !== group.owner) return reply('❌ Only owner can add co-owners.');
       if (!group.coowners.includes(mention)) {
-        group.coowners.push(mention);
-        saveRoles(roles);
+        group.coowners.push(mention);saveRoles(roles);
         return reply('✅ Co-owner added.');
-      } else {return reply('⚠️ User is already a co-owner.');
+      } else {
+        return reply('⚠️ User is already a co-owner.');
       }
     }
 
@@ -43,6 +47,13 @@ module.exports = {
       return reply('✅ Co-owner removed.');
     }
 
-    reply('❓ Usage: !setrole setowner/setcoowner/removecoowner @user');
+    if (subCommand === 'removeowner') {
+      if (sender !== BOT_CREATOR) return reply('❌ Only the bot creator can remove ownership.');
+      group.owner = null;
+      saveRoles(roles);
+      return reply('⚠️ Owner removed by bot creator.');
+    }
+
+    reply('❓ Usage: !setrole setowner/setcoowner/removecoowner/removeowner @user');
   }
 };
