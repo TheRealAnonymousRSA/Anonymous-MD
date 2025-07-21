@@ -1,54 +1,117 @@
 js
-const { owner, coOwners } = require('../config/roles');
+const fs = require('fs');
+const path = './roles.json';
 
-function getRole(sender) {
-  if (sender === owner) return 'owner';
-  if (coOwners.includes(sender)) return 'co-owner';
-  return 'user';
+function loadRoles() {
+  if (!fs.existsSync(path)) {
+    fs.writeFileSync(path, JSON.stringify({ groups: {} }, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(path));
 }
 
-module.exports = {
-  name: 'group',
-  commands: ['remove', 'promote', 'demote', 'myrole'],
+function saveRoles(data) {
+  fs.writeFileSync(path, JSON.stringify(data, null, 2));
+}
 
-  run: async (sock, msg, args, command) => {
-    const sender = msg.sender;
-    const chatId = msg.chat;
-    const mentioned = msg.mentionedJid[0];
-    const role = getRole(sender);
+async function handleRoleCommands(sock, message, sender, groupId) {
+  const { text } = message.message.conversation || { text: '' };
+  if (!text) return;
 
-    if (!['owner', 'co-owner'].includes(role)) {
-      return sock.sendMessage(chatId, { text: '❌ You don’t have permission.' });
-    }
+  const args = text.trim().split(' ');
+  const cmd = args[0].toLowerCase();
 
-    switch (command) {
-      case 'remove':
-        if (!mentioned) return sock.sendMessage(chatId, { text: '❗ Tag someone to remove.' });
+  if (!cmd.startsWith('!')) return; // commands start with !
 
-        if (mentioned === owner || coOwners.includes(mentioned)) {
-          return sock.sendMessage(chatId, { text: '❌ You can’t remove an owner or co-owner.' });
-        }
-
-        await sock.groupParticipantsUpdate(chatId, [mentioned], 'remove');
-        break;
-
-      case 'promote':
-        if (!mentioned) return sock.sendMessage(chatId, { text: '❗ Tag someone to promote.' });
-await sock.groupParticipantsUpdate(chatId, [mentioned], 'promote');
-        break;
-
-      case 'demote':
-        if (!mentioned) return sock.sendMessage(chatId, { text: '❗ Tag someone to demote.' });
-        await sock.groupParticipantsUpdate(chatId, [mentioned], 'demote');
-        break;
-
-      case 'myrole':
-        await sock.sendMessage(chatId, { text: `👤 Your role: *${role.toUpperCase()}*` });
-        break;
-
-      default:
-        await sock.sendMessage(chatId, { text: '⚠ Unknown group command.' });
-    }
+  // Load roles
+  let roles = loadRoles();
+  if (!roles.groups[groupId]) {
+    roles.groups[groupId] = { owner: '', coOwners: [] };
   }
-};
 
+  const groupRoles = roles.groups[groupId];
+
+  // Assign owner if not set
+  if (!groupRoles.owner) {groupRoles.owner = sender; // first user to run command becomes owner (optional)
+    saveRoles(roles);
+  }
+
+  // Check permissions
+  const isOwner = sender === groupRoles.owner;
+  const isCoOwner = groupRoles.coOwners.includes(sender);
+
+  // Set co-owner command
+  if (cmd === '!setcoowner') {
+    if (!isOwner) {
+      await sock.sendMessage(groupId, { text: 'Only the group owner can set co-owners.' }, { quoted: message });
+      return;
+    }
+
+    if (args.length < 2) {
+      await sock.sendMessage(groupId, { text: 'Usage: !setcoowner @number' }, { quoted: message });
+      return;
+    }
+
+    // extract mentioned number (should be in format @number)
+    const mentioned = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    if (mentioned.length === 0) {
+      await sock.sendMessage(groupId, { text: 'Please mention a user to set as co-owner.' }, { quoted: message });
+      return;
+    }
+
+    const newCoOwner = mentioned[0];
+    if (!groupRoles.coOwners.includes(newCoOwner)) {
+      groupRoles.coOwners.push(newCoOwner);
+      saveRoles(roles);
+      await sock.sendMessage(groupId, { text: `Added newCoOwner as co-owner.` ,  quoted: message );
+     else 
+      await sock.sendMessage(groupId,  text: `{newCoOwner} is already a co-owner.` }, { quoted: message });}
+    return;
+  }
+
+  // Remove co-owner command
+  if (cmd === '!removecoowner') {
+    if (!isOwner) {
+      await sock.sendMessage(groupId, { text: 'Only the group owner can remove co-owners.' }, { quoted: message });
+      return;
+    }
+
+    const mentioned = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    if (mentioned.length === 0) {
+      await sock.sendMessage(groupId, { text: 'Please mention a user to remove from co-owners.' }, { quoted: message });
+      return;
+    }
+
+    const coOwnerToRemove = mentioned[0];
+    const index = groupRoles.coOwners.indexOf(coOwnerToRemove);
+    if (index > -1) {
+      groupRoles.coOwners.splice(index, 1);
+      saveRoles(roles);
+      await sock.sendMessage(groupId, { text: `Removed coOwnerToRemove from co-owners.` ,  quoted: message );
+     else 
+      await sock.sendMessage(groupId,  text: `{coOwnerToRemove} is not a co-owner.` }, { quoted: message });
+    }
+    return;
+  }
+
+  // Example: check co-owner command
+  if (cmd === '!listcoowners') {
+    let list = groupRoles.coOwners.length
+      ? groupRoles.coOwners.map(jid => jid).join('\n')
+      : 'No co-owners set.';
+    await sock.sendMessage(groupId, { text: `Co-owners:\n${list}` }, { quoted: message });
+  }
+}// Export this function and call it in your message handler with proper params
+module.exports = { handleRoleCommands };
+```
+
+---
+
+How to use:
+
+- Load this command handler and call `handleRoleCommands(sock, message, sender, groupId)` inside your main message event.
+- Owner can do inside the group chat:
+
+```
+!setcoowner @1234567890
+!removecoowner @1234567890
+!listcoowners
