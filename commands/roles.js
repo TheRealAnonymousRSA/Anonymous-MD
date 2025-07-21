@@ -1,6 +1,8 @@
 js
 const fs = require('fs');
-const path = './roles.json'; // File to store owner/co-owner data
+const path = './roles.json';
+
+const BOT_OWNER = '27698210064@s.whatsapp.net';
 
 // Load or create roles file
 function loadRoles() {
@@ -15,76 +17,46 @@ function saveRoles(data) {
   fs.writeFileSync(path, JSON.stringify(data, null, 2));
 }
 
-/**
- * Handle owner/co-owner commands:
- * Commands:
- *  !setcoowner @user
- *  !removecoowner @user
- *  !listcoowners
- */
-async function handleRoleCommands(sock, message, sender, groupId) {
-  if (!message.message.conversation && !message.message.extendedTextMessage) return;
+// Handle role commands
+async function handleRoleCommand(command, args, groupId, sender, reply) {
+  const roles = loadRoles();
+  roles.groups[groupId] = roles.groups[groupId] || { owner: '', coowners: [] };
 
-  const text = message.message.conversation || message.message.extendedTextMessage?.text || '';
-  if (!text.startsWith('!')) return;
-
-  const args = text.trim().split(' ');
-  const cmd = args[0].toLowerCase();
-
-  let roles = loadRoles();
-  if (!roles.groups[groupId]) roles.groups[groupId] = { owner: '', coOwners: [] };
-  let groupRoles = roles.groups[groupId];
-
-  // Auto-assign owner if not set
-  if (!groupRoles.owner) {
-    groupRoles.owner = sender;
+  if (command === 'setowner') {
+    if (sender !== BOT_OWNER) return reply('Only bot owner can set group owner.');
+    const user = args[0].replace(/[@\s]/g, '') + '@s.whatsapp.net';
+    roles.groups[groupId].owner = user;
     saveRoles(roles);
-  }const isOwner = sender === groupRoles.owner;
-  const isCoOwner = groupRoles.coOwners.includes(sender);
+    return reply('Group owner set.');
+  }
 
-  if (cmd === '!setcoowner') {
-    if (!isOwner) {
-      await sock.sendMessage(groupId, { text: 'Only the owner can set co-owners.' }, { quoted: message });
-      return;
-    }
-    const mentioned = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
-    if (!mentioned.length) {
-      await sock.sendMessage(groupId, { text: 'Mention a user to set as co-owner.' }, { quoted: message });
-      return;
-    }
-    const newCoOwner = mentioned[0];
-    if (!groupRoles.coOwners.includes(newCoOwner)) {
-      groupRoles.coOwners.push(newCoOwner);
+  if (command === 'removeowner') {
+    if (sender !== BOT_OWNER) return reply('Only bot owner can remove group owner.');
+    roles.groups[groupId].owner = '';
+    saveRoles(roles);
+    return reply('Group owner removed.');
+  }if (command === 'setcoowner') {
+    if (sender !== roles.groups[groupId].owner && sender !== BOT_OWNER) return reply('Only owner can set co-owner.');
+    const user = args[0].replace(/[@\s]/g, '') + '@s.whatsapp.net';
+    if (!roles.groups[groupId].coowners.includes(user)) {
+      roles.groups[groupId].coowners.push(user);
       saveRoles(roles);
-      await sock.sendMessage(groupId, { text: `Added co-owner: newCoOwner` ,  quoted: message );
-     else 
-      await sock.sendMessage(groupId,  text: `{newCoOwner} is already a co-owner.` }, { quoted: message });
-    }
-  } else if (cmd === '!removecoowner') {
-    if (!isOwner) {
-      await sock.sendMessage(groupId, { text: 'Only the owner can remove co-owners.' }, { quoted: message });
-      return;
-    }
-    const mentioned = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
-    if (!mentioned.length) {await sock.sendMessage(groupId, { text: 'Mention a user to remove from co-owners.' }, { quoted: message });
-      return;
-    }
-    const toRemove = mentioned[0];
-    if (groupRoles.coOwners.includes(toRemove)) {
-      groupRoles.coOwners = groupRoles.coOwners.filter(jid => jid !== toRemove);
-      saveRoles(roles);
-      await sock.sendMessage(groupId, { text: `Removed co-owner: toRemove` ,  quoted: message );
-     else 
-      await sock.sendMessage(groupId,  text: `{toRemove} is not a co-owner.` }, { quoted: message });
-    }
-  } else if (cmd === '!listcoowners') {
-    if (groupRoles.coOwners.length === 0) {
-      await sock.sendMessage(groupId, { text: 'No co-owners set.' }, { quoted: message });
+      return reply('Co-owner added.');
     } else {
-      const list = groupRoles.coOwners.join('\n');
-      await sock.sendMessage(groupId, { text: `Co-owners:\n${list}` }, { quoted: message });
+      return reply('User is already a co-owner.');
     }
+  }
+
+  if (command === 'removecoowner') {
+    if (sender !== roles.groups[groupId].owner && sender !== BOT_OWNER) return reply('Only owner can remove co-owner.');
+    const user = args[0].replace(/[@\s]/g, '') + '@s.whatsapp.net';
+    roles.groups[groupId].coowners = roles.groups[groupId].coowners.filter(u => u !== user);
+    saveRoles(roles);
+    return reply('Co-owner removed.');
   }
 }
 
-module.exports = { handleRoleCommands };
+module.exports = {
+  handleRoleCommand,
+  loadRoles
+};
