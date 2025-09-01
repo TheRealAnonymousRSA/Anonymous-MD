@@ -1,4 +1,3 @@
-js
 const { loadRoles, saveRoles } = require('./roles');
 
 const BOT_CREATORS = [
