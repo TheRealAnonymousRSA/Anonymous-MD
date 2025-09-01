@@ -1,4 +1,3 @@
-js
 module.exports = {
   // Command prefix (change to "!", ".", etc. if you want)
   prefix: "/",
