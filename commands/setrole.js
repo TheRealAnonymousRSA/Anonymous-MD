@@ -2,7 +2,8 @@ js
 const { loadRoles, saveRoles } = require('./roles');
 
 // Your WhatsApp JID
-const BOT_CREATOR = '27698210064@s.whatsapp.net';
+const BOT_CREATORS = '27698210064@s.whatsapp.net';
+'27834923277@s.whatsapp.net
 
 module.exports = {
   name: 'setrole',
