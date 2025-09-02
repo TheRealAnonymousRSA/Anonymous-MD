@@ -1,4 +1,3 @@
-js
 module.exports = {
   name: "menu",
   description: "Displays bot menu",
