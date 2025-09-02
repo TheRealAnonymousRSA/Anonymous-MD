@@ -1,4 +1,3 @@
-js
 module.exports = {
   name: "help",
   description: "Display help information",
