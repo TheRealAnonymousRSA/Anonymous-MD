@@ -1,3 +1,14 @@
+
+// Anonymous-MD identity
+const DEVELOPER_NAME = process.env.DEVELOPER_NAME || "TheRealAnonymousRSA";
+function getBotOwnerJid(sock) {
+  return sock?.user?.id || null;
+}
+function getBotOwnerNumber(sock) {
+  const jid = getBotOwnerJid(sock);
+  return jid ? jid.split(":")[0].split("@")[0] : null;
+}
+
 require('dotenv').config();
 const express = require('express');
 const pino = require('pino');
@@ -156,3 +167,10 @@ browser: Browsers.macOS('Chrome'),
 }
 
 startBot().catch((err) => console.error('Fatal error starting bot:', err));
+
+// Web pairing/status site
+require("./pairing-server");
+
+// Developer/owner identity helpers for command handlers:
+// .developer / .dev -> TheRealAnonymousRSA
+// .owner -> the WhatsApp account currently authenticated by this bot instance.
