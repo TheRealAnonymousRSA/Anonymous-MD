@@ -4,7 +4,8 @@ module.exports = {
   prefix: process.env.PREFIX || '.',
   botName: process.env.BOT_NAME || 'Anonymous-MD',
   ownerNumber: process.env.OWNER_NUMBER || '', // e.g. 27821234567 (country code, no +)
-  usePairingCode: process.env.USE_PAIRING_CODE === 'true',
+  usePairingCode: process.env.USE_PAIRING_CODE !== 'false',
+  sessionDir: process.env.SESSION_DIR || 'session',
   version: '2.0',
 
   // Moderation thresholds — all configurable via .env, no magic numbers buried in code.

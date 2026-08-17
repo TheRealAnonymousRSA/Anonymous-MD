@@ -6,7 +6,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('angularsockets');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 

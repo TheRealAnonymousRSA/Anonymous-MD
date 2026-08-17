@@ -7,7 +7,7 @@ const {
   fetchLatestBaileysVersion,
   DisconnectReason,
   Browsers,
-} = require('@whiskeysockets/baileys');
+} = require('angularsockets');
 const { Boom } = require('@hapi/boom');
 const config = require('./config');
 const { handleMessage } = require('./lib/msgHandler');
@@ -26,7 +26,7 @@ app.listen(process.env.PORT || 3000, () =>
 
 // --- WhatsApp connection --------------------------------------------------
 async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState('session');
+  const { state, saveCreds } = await useMultiFileAuthState(config.sessionDir);
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -58,17 +58,81 @@ browser: Browsers.macOS('Chrome'),
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-  if (qr) {
-    qrcode.generate(qr, { small: true });
-  }
+    // QR support remains available when pairing-code mode is disabled.
+    if (qr && !config.usePairingCode) {
+      qrcode.generate(qr, { small: true });
+    }
 
     if (connection === 'close') {
       const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log('Connection closed.', shouldReconnect ? 'Reconnecting…' : 'Logged out — delete ./session and restart to relink.');
-      if (shouldReconnect) startBot();
+
+      console.log(
+        'Connection closed.',
+        shouldReconnect
+          ? 'Reconnecting in 5 seconds…'
+          : 'Logged out — remove the persistent session only if you intend to pair again.'
+      );
+
+      if (shouldReconnect) {
+        setTimeout(() => startBot().catch((err) => console.error('Reconnect failed:', err)), 5000);
+      }
     } else if (connection === 'open') {
       console.log(`✅ ${config.botName} connected to WhatsApp`);
+    }
+  });
+
+
+  // Angularsockets @lid group-mention compatibility.
+  // Resolves WhatsApp LID mentions to participant JIDs before command handling.
+  sock.ev.on('messages.upsert', async (chatUpdate) => {
+    try {
+      const mek = chatUpdate?.messages?.[0];
+      if (!mek?.message) return;
+
+      const remoteJid = mek.key?.remoteJid || '';
+      if (!remoteJid.endsWith('@g.us')) return;
+
+      const extended = mek.message.extendedTextMessage;
+      const mentionedJid = extended?.contextInfo?.mentionedJid || [];
+      if (!Array.isArray(mentionedJid) || !mentionedJid.some(j => j.endsWith('@lid'))) return;
+
+      const groupMetadata = await sock.groupMetadata(remoteJid);
+      const lidMap = {};
+
+      for (const lid of mentionedJid) {
+        if (!lid.endsWith('@lid')) continue;
+        const match = groupMetadata.participants.find(p => p.id === lid);
+        if (match?.jid) {
+          lidMap[lid.split('@')[0]] = match.jid.split('@')[0];
+        }
+      }
+
+      if (!Object.keys(lidMap).length) return;
+
+      const replaceLidInText = (value) => {
+        if (!value) return value;
+        for (const [lidNum, jidNum] of Object.entries(lidMap)) {
+          value = value.replace(new RegExp(`@${lidNum}\\\\b`, 'g'), `@${jidNum}`);
+        }
+        return value;
+      };
+
+      if (mek.message.conversation) {
+        mek.message.conversation = replaceLidInText(mek.message.conversation);
+      }
+      if (extended?.text) {
+        extended.text = replaceLidInText(extended.text);
+      }
+
+      const resolvedMentions = mentionedJid.map(jid => {
+        if (!jid.endsWith('@lid')) return jid;
+        const match = groupMetadata.participants.find(p => p.id === jid);
+        return match?.jid || jid;
+      });
+      extended.contextInfo.mentionedJid = resolvedMentions;
+    } catch (err) {
+      // Ignore LID normalization failures; normal message processing continues.
     }
   });
 
