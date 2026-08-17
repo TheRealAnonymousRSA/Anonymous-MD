@@ -12,6 +12,7 @@ const { Boom } = require('@hapi/boom');
 const config = require('./config');
 const { handleMessage } = require('./lib/msgHandler');
 const { handleGroupParticipantsUpdate } = require('./lib/groupEvents');
+const qrcode = require('qrcode-terminal');
 
 // --- Keep-alive web server ---------------------------------------------
 // Render/Railway free tiers expect something listening on $PORT, and
@@ -55,7 +56,11 @@ browser: Browsers.macOS('Chrome'),
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr } = update;
+
+  if (qr) {
+    qrcode.generate(qr, { small: true });
+  }
 
     if (connection === 'close') {
       const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
