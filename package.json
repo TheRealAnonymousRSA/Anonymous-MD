@@ -21,5 +21,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "overrides": {
+    "libsignal": "npm:@alipclutch/libsignal-node@2.2.7",
+    "libsignal-node": "npm:@alipclutch/libsignal-node@2.2.7"
   }
 }
