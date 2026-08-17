@@ -31,8 +31,7 @@ async function startBot() {
   const sock = makeWASocket({
     version,
     auth: state,
-    printQRInTerminal: !config.usePairingCode,
-    browser: Browsers.macOS('Chrome'),
+browser: Browsers.macOS('Chrome'),
     logger: pino({ level: 'silent' }),
   });
 
