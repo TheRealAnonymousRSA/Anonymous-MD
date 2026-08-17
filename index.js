@@ -44,7 +44,7 @@ browser: Browsers.macOS('Chrome'),
     } else {
       setTimeout(async () => {
         try {
-          const code = await sock.requestPairingCode(phoneNumber);
+          const code = await sock.requestPairingCode(phoneNumber, "KINGANON");
           console.log(`\n📱 Pairing code: ${code}\n   Open WhatsApp > Linked Devices > Link with phone number, and enter this code.\n`);
         } catch (e) {
           console.error('Failed to request pairing code:', e);
